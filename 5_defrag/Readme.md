@@ -39,7 +39,7 @@
 
 Карта носителя доступна в поле window.map типа String.
 
-## Специальные символы:
+**Специальные символы:**
 
 - \# — стенка;
 - . — пустое место;
@@ -61,7 +61,7 @@ window.map = `
 ```
 должно дать такой результат: 
 
-PIC(example.png)
+![An example of the interface](https://github.com/wspwebben/yacup2020_qualify/blob/master/5_defrag/example.png)
 
 ## Примечания
 
