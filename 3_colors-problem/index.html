@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<meta charset="utf-8"/>
+<style>
+html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font: 16pt Helvetica, Arial,sans-serif;
+}
+.page {
+    margin: 0;
+    padding: 2em 0;
+}
+.center {
+    margin: auto;
+    max-width: 1024px;
+    width: 80%;
+    position: relative;
+}
+
+.main {
+    box-shadow: 0 0 3px rgba(0,0,0,0.4)
+}
+
+.main:before {
+    padding-top: 37.5%;
+    display: block;
+    content: '';
+}
+
+.error {
+    color: #fff;
+    padding: 3em;
+    box-sizing: border-box;
+    display: none;
+    white-space: pre;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: #ab3246;
+}
+
+.error_visible {
+
+    display: block;
+}
+.frame {
+    background: #999;
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.fps-meter {
+    position: absolute;
+    top: 0;
+    left: 0;
+    text-shadow: 0 0 5px rgba(0,0,0,0.5);
+    color: #fff;
+}
+
+.source {
+    left: 0;
+}
+
+.source canvas {
+    visibility: hidden;
+}
+
+.dest {
+    right: 0;
+}
+
+video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+</style>
+<body class="page">
+
+    <div class="center main">
+        <div class="frame source">
+            <canvas></canvas>
+            <video></video>
+            <div class="fps-meter">0</div>
+        </div>
+        <div class="frame dest">
+            <canvas style="visibility: hidden"></canvas>
+        </div>
+        <div class="error"></div>
+    </div>
+</body>
+<script>
+const video = document.querySelector('video'),
+sourceCanvas = document.querySelector('.source canvas'),
+sourceFps = document.querySelector('.source .fps-meter'),
+sourceCtx = sourceCanvas.getContext('2d'),
+destCanvas = document.querySelector('.dest canvas'),
+destFps = document.querySelector('.dest .fps-meter'),
+destCtx = destCanvas.getContext('2d');
+
+function showError(err) {
+    const error = document.querySelector('.error');
+    error.innerText = `${err.message}\n${err.stack || ''}`;
+    error.classList.add('error_visible');
+    console.error(err);
+}
+function hideError() {
+    const error = document.querySelector('.error');
+    error.classList.remove('error_visible');
+}
+// common-js на минималках
+const module = {
+    exports: null
+};
+
+async function go() {
+    try {
+        hideError();
+        const mediaStream = await navigator.mediaDevices.getUserMedia({video: true});
+
+        video.srcObject = mediaStream;
+        video.onloadedmetadata = function() {
+            video.play();
+            startMainCycle();
+        };
+    } catch(e) {
+        showError(e);
+    }
+}
+
+function startMainCycle() {
+    onResize();
+    destCanvas.style.visibility = '';
+    requestAnimationFrame(mainCycle);
+}
+
+let dimensions = {},
+    copyParams = {},
+    background = [],
+    scale = 0.1;
+
+const api = {
+    getDimensions: () => {
+        return {...dimensions};
+    },
+    getTime: () => {
+        return Date.now();
+    },
+    getBackground: () => {
+        return background.slice();
+    }
+};
+function onResize() {
+    const {width, height} = sourceCanvas.getBoundingClientRect();
+
+    sourceCanvas.width = width * scale;
+    sourceCanvas.height = height * scale;
+    destCanvas.width = width * scale;
+    destCanvas.height = height * scale;
+
+    const cWidth = sourceCanvas.width,
+        cHeight = sourceCanvas.height,
+        cAspect = cWidth / cHeight,
+        vWidth = video.videoWidth,
+        vHeight = video.videoHeight,
+        vAspect = vWidth / vHeight;
+
+    let dW = cWidth,
+        dH = cHeight;
+    if (cAspect > vAspect) {
+        // канвас более широк, подстраиваем высоту
+        dH = dW / vAspect;
+    } else {
+        dW = dH * vAspect;
+    }
+    let dx = (cWidth - dW) / 2,
+        dy = (cHeight - dH) / 2
+    copyParams = {
+        dx, dy, dW, dH
+    };
+    dimensions = {
+        width: parseInt(dW),
+        height: parseInt(dH)
+    };
+
+    background = new Uint8ClampedArray(128 * 128 * 4).fill(Math.random()*255);
+}
+window.addEventListener('resize', () => {
+    onResize();
+});
+
+let processing = false;
+let prevTs = 0;
+
+async function mainCycle(ts) {
+    let fps = (1000 / (ts - prevTs));
+    prevTs = ts;
+
+    if (fps < 5) {
+        scale *= Math.sqrt(fps / 5);
+
+        scale = Math.max(0.1, scale);
+        onResize();
+    } else if (fps >= 25 && scale < 1) {
+        scale = Math.min(1, scale * 1.1);
+        onResize();
+    }
+
+    sourceFps.innerText = `${fps.toFixed(2)} (scale: ${scale.toFixed(2)})`;
+
+    let {dx, dy, dW,dH} = copyParams;
+    sourceCtx.drawImage(video, dx, dy, dW, dH);
+
+    let frame = sourceCtx.getImageData(0, 0, dW, dH),
+        data;
+    try {
+        data = await module.exports(frame.data, api);
+    } catch(e) {
+        showError(e);
+        return;
+    }
+    let processed = new ImageData(data, dW, dH);
+    destCtx.putImageData(processed, 0, 0);
+
+
+    requestAnimationFrame(mainCycle);
+}
+
+const script = document.createElement('script'),
+    notLoaded = (e) => {
+        clearTimeout(loadTimeout);
+        e.message = 'Тестируемый код должен находиться в файле var.js. ' +
+            (e.message || '');
+        showError(e);
+    },
+    loadTimeout = setTimeout(() => {
+        notLoaded(new Error('Не загружено за 5 секунд'));
+    }, 5000);
+script.src = 'var.js';
+script.onload = () => {
+    clearTimeout(loadTimeout);
+    go();
+};
+script.onerror = notLoaded;
+document.body.appendChild(script);
+
+</script>

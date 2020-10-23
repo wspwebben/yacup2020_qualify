@@ -1,0 +1,87 @@
+.map {
+  --bg: #35004d;
+  --border: #6c4080;
+  --wall1: #ff7a00;
+  --wall2: #ffa03f;
+  --wall3: #ffb971;
+
+  --first-color: #dd71ff;
+  --first-shadow: #c100ff;
+  --first-fixed: #a26fff;
+  
+  --second-color: #71ffc9;
+  --second-shadow: #00ff73;
+  --second-fixed: #52d8d7;
+
+  --size: 90px;
+
+  
+  display: table;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  background-color: var(--bg);
+}
+
+.row {
+  display: table-row;
+}
+
+
+.cell {
+  display: table-cell;
+  width: var(--size);
+  height: var(--size);
+  border: 1px solid var(--border);
+}
+
+.wall {
+  background-image: linear-gradient(to top, var(--wall1) 50%, var(--wall2) 50%, var(--wall2) 90%, var(--wall3) 90%);
+}
+
+.first {
+  --color: var(--first-color);
+  --shadow: var(--first-shadow);
+  --fixed: var(--first-fixed);
+}
+
+.second {
+  --color: var(--second-color);
+  --shadow: var(--second-shadow);
+  --fixed: var(--second-fixed);
+}
+
+.moving {
+  background-color: var(--color);
+  box-shadow: 0 0 0 3px var(--shadow) inset;
+}
+
+.fixed {
+  position: relative;
+  background-color: var(--fixed);
+}
+
+.fixed::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 8px;
+  right: 8px;
+  background-color: var(--color);
+}
+
+.control_action {
+  padding: 1em 2em;
+  border-style: solid;
+  cursor: pointer;
+}
+
+.control_action:hover,
+.control_action:focus {
+  background-color: #bbb;
+}
+
+.control_action:active {
+  background-color: #888;
+  color: #eee;
+}
